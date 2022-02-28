@@ -13,7 +13,8 @@ module Return_Address_Stack(
     input jalr_inst_signal_in,
     input jump_signal_in,
     input interrupt_signal_in,
-
+    input return_address_registers_flag_signal_in,
+    
     output reg [63:0] return_address_out = 0,
     
     output return_signal_out
@@ -31,6 +32,14 @@ module Return_Address_Stack(
     reg stack_enable_reg = 0;
     reg stack_empty_reg = 0;
     
+    reg interrupt_signal2_reg = 0;
+    reg interrupt_signal3_reg = 0;
+    
+    always @(posedge clk_in) begin
+        interrupt_signal2_reg <= interrupt_signal_in;
+        interrupt_signal3_reg <= interrupt_signal2_reg;
+    end
+    
     assign pop_0 = (((rd_in != 5'b00001) || (rd_in != 5'b00101)) && ((rs1_in == 5'b00001) || (rs1_in == 5'b00101)));
     assign pop_1 = (((rd_in == 5'b00001) || (rd_in == 5'b00101)) && ((rs1_in == 5'b00001) || (rs1_in == 5'b00101)) && (rd_in != rs1_in));
     
@@ -40,7 +49,7 @@ module Return_Address_Stack(
     assign push_3 = (((rd_in == 5'b00001) || (rd_in == 5'b00101)) && ((rs1_in == 5'b00001) || (rs1_in == 5'b00101)) && (rd_in == rs1_in));
     
     assign pop =  (pop_0 | pop_1) & ~push_3;
-    assign push = (push_0 | push_1 | push_2 | push_3);
+    assign push = (push_0 | push_1 | push_2 | push_3) | (interrupt_signal3_reg & ~return_address_registers_flag_signal_in);
     
     always @(posedge clk_in) begin
         if(jump_signal_in) begin
@@ -78,7 +87,7 @@ module Return_Address_Stack(
     end
     
     always @(*) begin 
-        if(jump_signal_in & stack_enable_reg) begin
+        if((jump_signal_in & stack_enable_reg) | (interrupt_signal3_reg & ~return_address_registers_flag_signal_in)) begin
             case({pop,push})
                 `POP : begin
                     pointer_pop_push_reg = (stack_pointer_reg != 4'b0000) ? (stack_pointer_reg - 1) : stack_pointer_reg;
@@ -94,7 +103,7 @@ module Return_Address_Stack(
     end
     
     always @(posedge clk_in) begin
-        if(jump_signal_in & stack_enable_reg) begin
+        if((jump_signal_in & stack_enable_reg) | (interrupt_signal3_reg & ~return_address_registers_flag_signal_in)) begin
             if(push) begin
                 Stack_reg[stack_pointer_reg] <= return_address_reg_value_in;
             end

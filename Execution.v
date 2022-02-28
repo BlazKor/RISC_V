@@ -25,6 +25,7 @@ module Execution (
     input [1:0] csr_op_signal_in,
     input [1:0] alu_mux1_src_signal_in,
     input [1:0] alu_mux2_src_signal_in,
+    input [1:0] alu_mux3_src_signal_in,
     input ras_mux_src_signal_in,
     input call_mux_src_signal_in,
     input pc_src_signal_in,
@@ -41,6 +42,8 @@ module Execution (
     input wb_valid_instr_signal_in,
     input interrupt_signal_in,
     input return_interrupt_signal_in,
+    input return_address_registers_flag_signal_in,
+    input stacking_signal_in,
     input stall_signal_in,
     input flush_signal_in,
 
@@ -48,6 +51,7 @@ module Execution (
     output reg [63:0] alu_result_out,
     output reg [63:0] rs2_value_out,
     output [63:0] csr_mepc_out,
+    output [15:0] led_out,
     output reg [4:0] rd_out,
 
     output reg [2:0] width_signal_out,
@@ -57,13 +61,20 @@ module Execution (
     output reg write_signal_out,
     output reg wb_src_signal_out, 
     output reg valid_instr_signal_out,
-    output reg flush_signal_out
+    output reg flush_signal_out,
+    output timer_interrupt_trigger_out,
+    output csr_mie_meie_out,
+    output csr_mie_mtie_out
 );
 
     wire [63:0] alu_result_Arithmetic_Logic_Unit;
     wire [63:0] csr_value_Control_Status_Register;
+    wire [63:0] rs1_value_Arithmetic_Logic_Unit;
+    wire [63:0] rs2_value_Arithmetic_Logic_Unit;
     wire carry_signal_Arithmetic_Logic_Unit;
     wire zero_signal_Arithmetic_Logic_Unit;
+    
+    wire [63:0] pc_Jump_n_Branches;
     
     wire [63:0] return_address_Return_Address_Stack;    
     wire return_signal_Return_Address_Stack;
@@ -71,7 +82,7 @@ module Execution (
 Arithmetic_Logic_Unit Arithmetic_Logic_Unit(
     .pc_in(pc_in),                  
     .alu_result_in(alu_result_in),          
-    .wr_data_in(wr_data_in),             
+    .wr_data_in(wr_data_in),
     .rs1_value_in(rs1_value_in),           
     .rs2_value_in(rs2_value_in),           
     .imm_value_in(imm_value_in),
@@ -81,9 +92,12 @@ Arithmetic_Logic_Unit Arithmetic_Logic_Unit(
     .alu_src_signal_in(alu_src_signal_in),
     .alu_mux1_src_signal_in(alu_mux1_src_signal_in), 
     .alu_mux2_src_signal_in(alu_mux2_src_signal_in), 
+    .alu_mux3_src_signal_in(alu_mux3_src_signal_in),
     .add_sub_srl_sra_signal_in(add_sub_srl_sra_signal_in),
     
     .alu_result_out(alu_result_Arithmetic_Logic_Unit),
+    .rs1_value_out(rs1_value_Arithmetic_Logic_Unit),
+    .rs2_value_out(rs2_value_Arithmetic_Logic_Unit),
     .carry_signal_out(carry_signal_Arithmetic_Logic_Unit),
     .zero_signal_out(zero_signal_Arithmetic_Logic_Unit)
 );
@@ -98,6 +112,8 @@ Return_Address_Stack Return_Address_Stack(
     .jalr_inst_signal_in(pc_src_signal_in),
     .jump_signal_in(jump_signal_in),
     .interrupt_signal_in(interrupt_signal_in),
+    .return_address_registers_flag_signal_in(return_address_registers_flag_signal_in),
+    
     .return_address_out(return_address_Return_Address_Stack),
     
     .return_signal_out(return_signal_Return_Address_Stack)
@@ -114,7 +130,7 @@ Jump_n_Branches Jump_n_Branches(
     .carry_signal_in(carry_signal_Arithmetic_Logic_Unit),
     .zero_signal_in(zero_signal_Arithmetic_Logic_Unit),
     
-    .pc_out(pc_out),
+    .pc_out(pc_Jump_n_Branches),
         
     .branch_jump_signal_out(branch_jump_signal_out)
 );
@@ -122,8 +138,9 @@ Jump_n_Branches Jump_n_Branches(
 Control_Status_Register Control_Status_Register(
     .clk_in(clk_in),
 
-    .rs1_value_in(rs1_value_in),
+    .rs1_value_in(rs1_value_Arithmetic_Logic_Unit),
     .instr_address_in(instr_address_in),
+    .pc_jump_branch_in(pc_Jump_n_Branches),
     .csr_address_in(imm_value_in[11:0]),
     .uimm_value_in(rs1_in),
     
@@ -131,30 +148,45 @@ Control_Status_Register Control_Status_Register(
     .csr_write_signal_in(csr_write_signal_in),
     .csr_rs1_imm_signal_in(csr_rs1_imm_signal_in),
     .wb_valid_inst_signal_in(wb_valid_instr_signal_in),
+    .branch_jump_signal_in(branch_jump_signal_out),
     .interrupt_signal_in(interrupt_signal_in),
     .return_interrupt_signal_in(return_interrupt_signal_in),
     .stall_signal_in(stall_signal_in),
 
     .csr_value_out(csr_value_Control_Status_Register),
-    .csr_mepc_out(csr_mepc_out)
+    .csr_mepc_out(csr_mepc_out),
+    .led_out(led_out),
+    .timer_interrupt_trigger_out(timer_interrupt_trigger_out),
+    .csr_mie_mtie_out(csr_mie_mtie_out),
+    .csr_mie_meie_out(csr_mie_meie_out)
 );
 
+    assign pc_out = stacking_signal_in ? 64'b0 : pc_Jump_n_Branches;
+    
     always @(posedge clk_in) begin
-        if(!stall_signal_in) begin
+        if(!stall_signal_in ) begin
             alu_result_out <= csr_read_signal_in ? csr_value_Control_Status_Register : (return_signal_Return_Address_Stack ? return_address_Return_Address_Stack : alu_result_Arithmetic_Logic_Unit);
-            rs2_value_out <= rs2_value_in;
+            rs2_value_out <= rs2_value_Arithmetic_Logic_Unit;
             rd_out <= return_signal_Return_Address_Stack ? rs1_in : rd_in;
+            
             flush_signal_out <= flush_signal_in;
-        end
-        if(!flush_signal_in) begin
             width_signal_out <= width_signal_in;
-            rd_write_signal_out <= rd_write_signal_in | (return_signal_Return_Address_Stack & jump_signal_in);
+            rd_write_signal_out <= rd_write_signal_in;
             read_signal_out <= read_signal_in;
             write_signal_out <= write_signal_in;
             wb_src_signal_out <= wb_src_signal_in;
             valid_instr_signal_out <= valid_instr_signal_in;
-        end 
-        else begin
+            
+            if(flush_signal_in) begin
+                width_signal_out <= 0;
+                rd_write_signal_out <= 0;
+                read_signal_out <= 0;
+                write_signal_out <= 0;
+                wb_src_signal_out <= 0;
+                valid_instr_signal_out <= 0;
+            end
+        end
+        if(interrupt_signal_in) begin
             width_signal_out <= 0;
             rd_write_signal_out <= 0;
             read_signal_out <= 0;

@@ -17,6 +17,7 @@ module Memory(
     input read_signal_in,
     input write_signal_in,
     input valid_instr_signal_in,
+    input interrupt_signal_in,
     input stall_signal_in,
     input flush_signal_in,
 
@@ -206,8 +207,7 @@ module Memory(
         if(!stall_signal_in) begin
             wr_data_out <= wb_src_signal_in ? alu_result_in : ram_data_read_reg;
             rd_out <= rd_in;
-        end
-        if(!flush_signal_in) begin
+            if(!flush_signal_in) begin
                 rd_write_signal_out <= rd_write_signal_in;
                 valid_instr_signal_out <= valid_instr_signal_in;
             end 
@@ -215,6 +215,14 @@ module Memory(
                 rd_write_signal_out <= 0;
                 valid_instr_signal_out <= 0;
             end
+        end
+        if(stall_signal_in & flush_signal_in) begin
+            rd_write_signal_out <= 0;
+        end
+        if(interrupt_signal_in) begin
+            rd_write_signal_out <= 0;
+            valid_instr_signal_out <= 0;
+        end
     end
 endmodule
 `endif

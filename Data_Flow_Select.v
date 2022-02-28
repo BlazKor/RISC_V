@@ -10,14 +10,16 @@ module Data_Flow_Select(
     input [63:0] rs1_value_in,
     input [63:0] rs2_value_in,
     input [63:0] imm_value_in,
-
+    
     input [2:0] alu_src_signal_in,
     input [1:0] alu_mux1_src_signal_in,
     input [1:0] alu_mux2_src_signal_in,
+    input [1:0] alu_mux3_src_signal_in,
     
     output reg [63:0] alu_value1_out,
-    output reg [63:0] alu_value2_out
-    );
+    output reg [63:0] alu_value2_out,
+    output reg [63:0] alu_value3_out
+);
     
     reg [63:0] value_rs1_pc_zero_reg;
     reg [63:0] value_rs2_imm_four_reg;
@@ -63,6 +65,14 @@ module Data_Flow_Select(
         2'b10: alu_value2_out <= wr_data_in;    
         default: alu_value2_out <= value_rs2_imm_four_reg;
     endcase
+    
+    case(alu_mux3_src_signal_in)
+        2'b00: alu_value3_out <= value_rs2_imm_four_reg;
+        2'b01: alu_value3_out <= alu_result_in;  
+        2'b10: alu_value3_out <= wr_data_in;    
+        default: alu_value3_out <= value_rs2_imm_four_reg;
+    endcase
     end
+    
 endmodule
 `endif

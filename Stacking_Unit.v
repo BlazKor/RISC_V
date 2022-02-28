@@ -18,7 +18,8 @@ module Stacking_Unit (
     output interrupt_signal_out,
     output return_interrupt_signal_out,
     output reg return_address_registers_flag_signal_out = 0,
-    output reg return_pipeline_registers_signal_out = 0
+    output reg return_pipeline_registers_signal_out = 0,
+    output interrupt_pending_signal_out
 );
 
     reg [31:0] registers_flag_reg = 32'h00000000;
@@ -28,30 +29,37 @@ module Stacking_Unit (
 
     reg [4:0] register_addres_reg = 5'h00;
     reg [4:0] register_unstacking_addres_reg;
-    reg [1:0] delay_signal_reg = 1'h0;
+    reg [2:0] delay_signal_reg = 1'h0;
 
     reg stacking_signal_reg = 1'h0;
+    reg stacking_pending_signal_reg = 1'h1;
     reg unstacking_signal_reg = 1'h0;
     reg write_signal_reg = 1'h0;
     reg interrupt_pending_signal_reg = 1'h0;
     reg return_interrupt_signal_reg = 1'h0;
+    reg return_pipeline_registers_signal_reg = 0;
     
-    always @(*) begin
-        if(interrupt_pending_signal_reg) begin
-            return_interrupt_signal_reg <= return_interrupt_signal_in;
-        end
+    wire return_interrupt_signal;
+    
+    always @(posedge clk_in) begin
+        return_interrupt_signal_reg <= return_interrupt_signal_in;
+    end
+    
+    assign return_interrupt_signal = ~return_interrupt_signal_reg & return_interrupt_signal_in;
+    
+    always @(negedge clk_in) begin
         if(rd_write_signal_in) begin
             if(~interrupt_pending_signal_reg) begin
                 registers_stacking_flag_reg[rd_in] <= 1'h1;
             end
             else if(return_pipeline_registers_signal_out) begin
-                registers_stacking_flag_reg <= 1'h0;
+                registers_stacking_flag_reg <= 32'h0;
             end
             if(interrupt_pending_signal_reg & ~return_interrupt_signal_out) begin
                 registers_interrupt_flag_reg[rd_in] <= 1'h1;
             end
-            else if(return_interrupt_signal_reg) begin
-                registers_interrupt_flag_reg <= 32'h00000000;
+            else if(return_interrupt_signal) begin
+                registers_interrupt_flag_reg <= 32'h0;
             end
         end
     end
@@ -64,14 +72,12 @@ module Stacking_Unit (
             interrupt_pending_signal_reg <= 1'h0;
         end
     end
-
+        
     always @(posedge clk_in) begin
-        if(~stacking_signal_reg) begin
-            stacking_signal_reg <= interrupt_signal_in;
-        end
         if(~unstacking_signal_reg) begin
-            unstacking_signal_reg <= return_interrupt_signal_reg;
-        end       
+            unstacking_signal_reg <= return_interrupt_signal;
+        end
+        stacking_signal_reg <= (~stacking_signal_reg) ? interrupt_signal_in : stacking_pending_signal_reg;
         if(~|registers_flag_reg) begin
             if(stacking_signal_reg | unstacking_signal_reg) begin
                 delay_signal_reg <= delay_signal_reg + 1'h1;
@@ -79,7 +85,7 @@ module Stacking_Unit (
             case(delay_signal_reg)
                 2'h2 : begin
                     if(stacking_signal_reg) begin
-                        stacking_signal_reg <= 1'h0;
+                        stacking_pending_signal_reg <= 1'h0;
                         delay_signal_reg <= 1'h0;
                     end
                     if(unstacking_signal_reg) begin
@@ -88,8 +94,8 @@ module Stacking_Unit (
                 end
                 2'h3 : begin
                     if(unstacking_signal_reg) begin
-                        unstacking_signal_reg <= 1'h0;
-                        return_pipeline_registers_signal_out <= 1'h1;
+                        return_pipeline_registers_signal_reg <= 1'h1;
+                        stacking_pending_signal_reg <= 1'h1;
                         delay_signal_reg <= 1'h0;
                     end
                 end
@@ -102,17 +108,30 @@ module Stacking_Unit (
                 delay_signal_reg <= 1'h0;
             end
         end
+        if(return_pipeline_registers_signal_reg) begin 
+            return_pipeline_registers_signal_reg <= 1'h0; 
+            unstacking_signal_reg <= 1'h0;
+        end
+        if(return_pipeline_registers_signal_out) begin 
+            return_pipeline_registers_signal_out = 1'h0; 
+            return_address_registers_flag_signal_out <= 1'h0; 
+        end
+        else begin
+            return_pipeline_registers_signal_out = return_pipeline_registers_signal_reg;
+            return_address_registers_flag_signal_out <= registers_stacking_flag_reg[5'h01];
+        end
+        
         register_unstacking_addres_reg <= register_addres_reg;
-        return_pipeline_registers_signal_out = return_pipeline_registers_signal_out ? 1'h0 : return_pipeline_registers_signal_out;
-        return_address_registers_flag_signal_out <= return_pipeline_registers_signal_out ? 1'h0 : registers_stacking_flag_reg[5'h01];
-        memory_address_out <= (32'h3FF - register_addres_reg) << 2'h3;
         registers_memory_flag_reg[register_addres_reg] <= 1'h1;
+        
+        memory_address_out <= (32'h3FF - register_addres_reg) << 2'h3;
     end
-
+    
     assign register_addres_out = write_signal_reg ? register_addres_reg : register_unstacking_addres_reg;
     assign interrupt_signal_out = stacking_signal_reg;
-    assign return_interrupt_signal_out = unstacking_signal_reg | return_pipeline_registers_signal_out;
-    
+    assign return_interrupt_signal_out = unstacking_signal_reg;
+    assign interrupt_pending_signal_out = interrupt_pending_signal_reg;
+
     always @(posedge clk_in) begin
         if(stacking_signal_reg) begin
             write_signal_reg <= stacking_signal_reg;
@@ -122,14 +141,15 @@ module Stacking_Unit (
             write_signal_reg = 1'h0;
             write_signal_out = 1'h0;
         end
+        
     end
-
+    
     always @(posedge clk_in) begin
         if(interrupt_signal_in) begin
-            registers_flag_reg <= registers_stacking_flag_reg;
+            registers_flag_reg = registers_stacking_flag_reg;
         end
-        if(return_interrupt_signal_reg) begin
-            registers_flag_reg <= (registers_stacking_flag_reg & registers_interrupt_flag_reg) | (registers_memory_flag_reg & registers_interrupt_flag_reg);
+        if(return_interrupt_signal) begin
+            registers_flag_reg = (registers_stacking_flag_reg & registers_interrupt_flag_reg) | (registers_memory_flag_reg & registers_interrupt_flag_reg);
         end
         if(stacking_signal_reg | unstacking_signal_reg) begin
             if(registers_flag_reg[5'h00]) begin

@@ -53,7 +53,7 @@ module Branch_Predictor(
             pc_out <= pc_in;
         end
     end
-
+    
     assign return_pred_signal_out = (~branch_jump_signal_in & branch_pred_signal_out) ^ return_pred_signal_reg;
 
     always @(posedge clk_in) begin

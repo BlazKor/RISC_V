@@ -12,6 +12,7 @@ module Control_Status_Register(
     
     input [63:0] rs1_value_in,
     input [63:0] instr_address_in,
+    input [63:0] pc_jump_branch_in,
     input [11:0] csr_address_in,
     input [4:0] uimm_value_in,
     
@@ -19,14 +20,19 @@ module Control_Status_Register(
     input csr_write_signal_in,
     input csr_rs1_imm_signal_in,
     input wb_valid_inst_signal_in,
+    input branch_jump_signal_in,
     input interrupt_signal_in,
     input return_interrupt_signal_in,
     input stall_signal_in,
     
     output reg [63:0] csr_value_out,
-    output [63:0] csr_mepc_out
+    output [63:0] csr_mepc_out,
+    output [15:0] led_out,
+    output timer_interrupt_trigger_out,
+    output csr_mie_mtie_out,
+    output csr_mie_meie_out
 );
-
+    
     reg [63:0] cycle_reg = 0;
     reg [63:0] instret_reg = 0;
     reg [63:0] time_reg = 0;
@@ -34,11 +40,15 @@ module Control_Status_Register(
     reg [63:0] csr_mtimecmp = 0;
     reg [11:0] csr_mie = 0;
     reg [63:0] csr_mepc = 64'h0;
+    reg [15:0] csr_led_ctrl = 0;
     reg [3:0] csr_mbutton_ctrl = 0;
     reg [3:0] csr_mswitch_ctrl = 0;
 
+    
     reg [63:0] data_reg;
     reg csr_mepc_flag_reg = 0;
+    
+    reg timer_interrupt_trigger = 0;
 
     wire [63:0] write_value;
 
@@ -53,22 +63,24 @@ module Control_Status_Register(
     endcase
 
     always @(negedge clk_in) begin
-        if(csr_write_signal_in) begin
+        if(interrupt_signal_in) begin
+            csr_mepc = branch_jump_signal_in ? pc_jump_branch_in : instr_address_in;
+        end
+        else if(csr_write_signal_in) begin
             case(csr_address_in)
                 `CSR_MTIMECMP : csr_mtimecmp = data_reg;
                 `CSR_MIE : csr_mie = data_reg;
                 `CSR_MIEPC : csr_mepc = data_reg;
                 `CSR_MBUTTON_CTRL : csr_mbutton_ctrl = data_reg;
                 `CSR_MSWITCH_CTRL : csr_mswitch_ctrl = data_reg;
+                `CSR_LED_CTRL : csr_led_ctrl = data_reg;
             endcase
-        end
-        else if(interrupt_signal_in) begin
-            csr_mepc = instr_address_in;
         end
     end
 
     assign csr_mepc_out = csr_mepc;
-
+    assign led_out = csr_led_ctrl;
+    
     always @(posedge clk_in) begin
         if(!stall_signal_in) begin
             instret_reg = instret_reg + wb_valid_inst_signal_in;
@@ -77,11 +89,11 @@ module Control_Status_Register(
             if(csr_mie[`MTIE]) begin
                 if(csr_mtime < csr_mtimecmp) begin 
                 csr_mtime = csr_mtime + 1;
-                //timer_interrupt_trigger = 1'b0;
+                timer_interrupt_trigger = 1'b0;
                 end 
                 else begin
                 csr_mtime = 64'b0;
-                //timer_interrupt_trigger = 1'b1;
+                timer_interrupt_trigger = 1'b1;
                 end
             end
             time_reg = time_reg + 1'b1;
@@ -91,6 +103,9 @@ module Control_Status_Register(
             cycle_reg = cycle_reg + 1;
         end
     end
+    assign csr_mie_mtie_out = csr_mie[`MTIE];
+    assign csr_mie_meie_out = csr_mie[`MEIE];
+    assign timer_interrupt_trigger_out = timer_interrupt_trigger;
 
     always @(negedge clk_in)
     case(csr_address_in)
@@ -103,6 +118,7 @@ module Control_Status_Register(
         `CSR_MIEPC : csr_value_out = csr_mepc;
         `CSR_MBUTTON_CTRL : csr_value_out = csr_mbutton_ctrl;
         `CSR_MSWITCH_CTRL : csr_value_out = csr_mswitch_ctrl;
+        `CSR_LED_CTRL : csr_value_out = csr_led_ctrl;
     endcase
 
 endmodule

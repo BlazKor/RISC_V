@@ -1,3 +1,5 @@
+`include "Opcodes.vh"
+
 `ifndef External_RAM
 `define External_RAM
 
@@ -7,7 +9,7 @@ module External_RAM (
     input [9:0] address_in,
     input [63:0] value_in,
     input [7:0] mask_in,
-    
+     
     input write_signal_in,
     input read_signal_in,
     
@@ -15,7 +17,7 @@ module External_RAM (
 );
 
     reg [63:0] memory_ram [1023:0];
-       
+    
     always @(posedge clk_in) begin  
         if(write_signal_in) begin
             if(mask_in[0]) begin

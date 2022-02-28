@@ -14,7 +14,7 @@ module Jump_n_Branches(
     input carry_signal_in,
     input zero_signal_in,
     
-    output reg [63:0] pc_out,
+    output [63:0] pc_out,
     
     output branch_jump_signal_out 
 );
@@ -22,9 +22,10 @@ module Jump_n_Branches(
     reg branch_signal_reg = 0;
     reg jump_signal_reg = 0;
     
-    always @(*) 
+    always @(*) begin
         jump_signal_reg <= jump_signal_in;
-
+    end
+    
     always @(branch_op_signal_in or zero_signal_in or carry_signal_in)
     case(branch_op_signal_in)
         `BRANCH_BEQ : begin
@@ -55,8 +56,7 @@ module Jump_n_Branches(
     endcase
     
     assign branch_jump_signal_out = jump_signal_reg | branch_signal_reg;
+    assign pc_out = ((pc_src_signal_in ? rs1_value_in : (pc_in - 4))) + (imm_value_in << 1);        
     
-    always @(*)
-        pc_out = ((pc_src_signal_in ? rs1_value_in : (pc_in - 4))) + (imm_value_in << 1);        
 endmodule
 `endif

@@ -14,6 +14,7 @@ module Instruction_Fetch (
     input branch_jump_signal_in,
     input branch_pred_signal_in,
     input interrupt_signal_in,
+    input interrupt_pending_signal_in,
     input stall_signal_in,
     
     output reg [63:0] pc_out = 0,
@@ -25,7 +26,9 @@ module Instruction_Fetch (
     reg [63:0] instr_address_reg = 0;
     reg [63:0] instr_address_pc_reg = 0;
     reg interrupt_signal_reg = 0;
-
+    reg branch_jump_signal_reg = 0;
+    reg branch_pred_signal_reg = 0;
+    
     initial
         instr_address_pc_reg = 0;
 
@@ -34,8 +37,19 @@ module Instruction_Fetch (
         .instr_read_value_out(instr_read_value_Program_Memory)
     );
     
+    always @(*) begin
+        if(interrupt_pending_signal_in) begin
+            branch_jump_signal_reg <= 0;
+            branch_pred_signal_reg <= 0;
+        end
+        else begin
+            branch_jump_signal_reg <= branch_jump_signal_in;
+            branch_pred_signal_reg <= branch_pred_signal_in;       
+        end
+    end
+    
     always @(*)
-    casex({interrupt_signal_reg, branch_pred_signal_in, branch_jump_signal_in})   
+    casex({interrupt_signal_reg, branch_pred_signal_reg, branch_jump_signal_reg})   
         `BRANCH_PC : begin
             instr_address_reg <= (branch_pc_in >> 2);
         end

@@ -16,10 +16,13 @@ module Arithmetic_Logic_Unit(
     input [2:0] alu_op_signal_in,
     input [2:0] alu_src_signal_in,
     input [1:0] alu_mux1_src_signal_in, 
-    input [1:0] alu_mux2_src_signal_in, 
+    input [1:0] alu_mux2_src_signal_in,
+    input [1:0] alu_mux3_src_signal_in, 
     input add_sub_srl_sra_signal_in,
     
     output reg [63:0] alu_result_out,
+    output [63:0] rs1_value_out,
+    output [63:0] rs2_value_out,
     output carry_signal_out,
     output zero_signal_out
 );
@@ -37,7 +40,9 @@ module Arithmetic_Logic_Unit(
     assign value1_sign = value1[63];
     assign value2_sign = value2[63];
     assign sign = width_data_signal_in[2];
-
+    
+    assign rs1_value_out = value1;
+    
     Data_Flow_Select Data_Flow_Select(
         .pc_in(pc_in),
         .alu_result_in(alu_result_in),
@@ -49,9 +54,11 @@ module Arithmetic_Logic_Unit(
         .alu_src_signal_in(alu_src_signal_in),
         .alu_mux1_src_signal_in(alu_mux1_src_signal_in),
         .alu_mux2_src_signal_in(alu_mux2_src_signal_in),
+        .alu_mux3_src_signal_in(alu_mux3_src_signal_in),
 
         .alu_value1_out(value1),
-        .alu_value2_out(value2)
+        .alu_value2_out(value2),
+        .alu_value3_out(rs2_value_out)
     );
 
     assign shamt = value2[5:0];

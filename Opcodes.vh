@@ -69,7 +69,7 @@
     `define CSR_MIEPC 12'h006
     `define CSR_MBUTTON_CTRL   12'h00A
     `define CSR_MSWITCH_CTRL   12'h00B
-
+    `define CSR_LED_CTRL 12'h00F
     //Immediate_Generation
     `define IMM_I_TYPE         3'b000
     `define IMM_S_TYPE         3'b001
@@ -82,6 +82,7 @@
     `define MEM_WIDTH_HWORD    2'b01
     `define MEM_WIDTH_WORD     2'b10
     `define MEM_WIDTH_DWORD    2'b11
+    `define LED                 12'hA
     
     //Control_Unit
     `define LUI 7'b0110111

@@ -16,6 +16,7 @@ module Forwarding (
 
     output reg [1:0] alu_mux1_src_signal_out,
     output reg [1:0] alu_mux2_src_signal_out,
+    output reg [1:0] alu_mux3_src_signal_out,
     output reg ras_mux_src_signal_out,
     output reg call_mux_src_signal_out
 );
@@ -41,7 +42,7 @@ module Forwarding (
     end
 
     always @(*) begin
-        if(jump_ID_EX_signal_in == 1'b1) begin
+        if(jump_ID_EX_signal_in == 1'b1 || instr_type_signal_in == `IMM_S_TYPE ) begin
             alu_mux2_src_signal_reg = 2'b00;
         end
         else begin
@@ -54,6 +55,18 @@ module Forwarding (
             else begin
                 alu_mux2_src_signal_reg = 2'b00;
             end
+        end
+    end
+    
+    always @(*) begin
+        if (instr_type_signal_in == `IMM_S_TYPE & (rd_write_EX_MEM_signal_in && (rd_EX_MEM_in != 0) && (rd_EX_MEM_in == rs2_in))) begin 
+            alu_mux3_src_signal_out = 2'b01; 
+        end
+        else if(instr_type_signal_in == `IMM_S_TYPE & (rd_write_MEM_WB_signal_in && (rd_MEM_WB_in != 0) && ~(rd_write_EX_MEM_signal_in && (rd_EX_MEM_in != 0) && (rd_EX_MEM_in == rs2_in)) && (rd_MEM_WB_in == rs2_in))) begin 
+            alu_mux3_src_signal_out = 2'b10; 
+        end
+        else begin
+            alu_mux3_src_signal_out = 2'b00;
         end
     end
     

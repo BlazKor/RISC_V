@@ -48,8 +48,11 @@ module Instruction_Decode (
     output reg wb_src_signal_out,
     output reg valid_instr_signal_out,
     output reg flush_signal_out
+    
+    //output [15:0] led_out
 );
-   
+    reg interrupt_signal_reg = 0;
+    
     wire [2:0] alu_op_signal_Control_Unit;
     wire [2:0] alu_src_signal_Control_Unit;
     wire [2:0] imm_signal_Control_Unit;
@@ -67,26 +70,27 @@ module Instruction_Decode (
     wire csr_rs1_imm_signal_Control_Unit;
     wire wb_src_signal_Control_Unit;
     wire valid_instr_signal_out_Control_Unit;
-    
+
     wire [63:0] imm_value_Immediate_Generation;
 
 General_Purpose_Registers General_Purpose_Registers (
     .clk_in(clk_in),
     
-    .wr_data_in((~return_address_registers_flag_signal_in & interrupt_signal_in) ? csr_mepc_in : wr_data_in),
+    .wr_data_in((interrupt_signal_in) ? csr_mepc_in : wr_data_in),
     .rs1_in(instr_in[19:15]),
     .rs2_in(interrupt_signal_in ? register_addres_in : (jump_signal_Control_Unit ? instr_in[11:7] : instr_in[24:20])),
-    .rd_in((~return_address_registers_flag_signal_in & interrupt_signal_in) ? 5'b01 : rd_in),
+    .rd_in(interrupt_signal_in ? 5'b00001 : rd_in),
     
-    .rd_write_signal_in((~return_address_registers_flag_signal_in & interrupt_signal_in) ? 1'b1 : rd_write_signal_in),
+    .rd_write_signal_in(rd_write_signal_in),
     .return_interrupt_signal_in(return_interrupt_signal_in),
     .interrupt_signal_in(interrupt_signal_in),
-    .return_address_registers_flag_signal_in(return_address_registers_flag_signal_in),
     .stall_signal_in(stall_signal_in),
     .flush_signal_in(flush_signal_in),
     
     .rs1_value_out(rs1_value_out),
     .rs2_value_out(rs2_value_out)
+    
+    //.led_out(led_out)
 );
 
 Control_Unit Control_Unit (
@@ -118,6 +122,11 @@ Immediate_Generator Immediate_Generator (
     
     .imm_value_out(imm_value_Immediate_Generation)
 );
+    always @(posedge clk_in) begin
+        interrupt_signal_reg <= interrupt_signal_in;
+    end
+    
+    assign interrupt_signal = ~interrupt_signal_reg & interrupt_signal_in;
     
     always @(posedge clk_in) begin
         if(!stall_signal_in) begin
@@ -126,28 +135,27 @@ Immediate_Generator Immediate_Generator (
             rs1_out <= instr_in[19:15];
             rs2_out <= instr_in[24:20];
             rd_out <= instr_in[11:7];
-            flush_signal_out <= flush_signal_in;
             
-            if(!flush_signal_in) begin
-                alu_op_signal_out <= alu_op_signal_Control_Unit;
-                alu_src_signal_out <= alu_src_signal_Control_Unit;
-                width_signal_out <= width_signal_Control_Unit;
-                imm_signal_out <= imm_signal_Control_Unit;
-                branch_op_signal_out <= branch_op_signal_Control_Unit;
-                csr_op_signal_out <= csr_op_signal_Control_Unit;
-                pc_src_signal_out <= pc_src_signal_Control_Unit;
-                jump_signal_out <= jump_signal_Control_Unit;
-                add_sub_srl_sra_signal_out <= add_sub_srl_sra_signal_Control_Unit;
-                rd_write_signal_out <= rd_write_signal_Control_Unit;
-                read_signal_out <= read_signal_Control_Unit;
-                write_signal_out <= write_signal_Control_Unit;
-                csr_write_signal_out <= csr_write_signal_Control_Unit;
-                csr_read_signal_out <= csr_read_signal_Control_Unit;
-                csr_rs1_imm_signal_out <= csr_rs1_imm_signal_Control_Unit;
-                wb_src_signal_out <= wb_src_signal_Control_Unit;
-                valid_instr_signal_out <= valid_instr_signal_out_Control_Unit;
-            end 
-            else begin
+            flush_signal_out <= flush_signal_in;
+            alu_op_signal_out <= alu_op_signal_Control_Unit;
+            alu_src_signal_out <= alu_src_signal_Control_Unit;
+            width_signal_out <= width_signal_Control_Unit;
+            imm_signal_out <= imm_signal_Control_Unit;
+            branch_op_signal_out <= branch_op_signal_Control_Unit;
+            csr_op_signal_out <= csr_op_signal_Control_Unit;
+            pc_src_signal_out <= pc_src_signal_Control_Unit;
+            jump_signal_out <= jump_signal_Control_Unit;
+            add_sub_srl_sra_signal_out <= add_sub_srl_sra_signal_Control_Unit;
+            rd_write_signal_out <= rd_write_signal_Control_Unit;
+            read_signal_out <= read_signal_Control_Unit;
+            write_signal_out <= write_signal_Control_Unit;
+            csr_write_signal_out <= csr_write_signal_Control_Unit;
+            csr_read_signal_out <= csr_read_signal_Control_Unit;
+            csr_rs1_imm_signal_out <= csr_rs1_imm_signal_Control_Unit;
+            wb_src_signal_out <= wb_src_signal_Control_Unit;
+            valid_instr_signal_out <= valid_instr_signal_out_Control_Unit;
+            
+            if(flush_signal_in) begin
                 alu_op_signal_out <= 8'h00;
                 alu_src_signal_out <= 8'h00;
                 width_signal_out <= 8'h00;
@@ -166,6 +174,25 @@ Immediate_Generator Immediate_Generator (
                 wb_src_signal_out <= 8'h00;
                 valid_instr_signal_out <= 8'h00;
             end
+        end
+        if(interrupt_signal) begin
+            alu_op_signal_out <= 8'h00;
+            alu_src_signal_out <= 8'h00;
+            width_signal_out <= 8'h00;
+            imm_signal_out <= 8'h00;
+            branch_op_signal_out <= 8'hzz;
+            csr_op_signal_out <= 8'h00;
+            pc_src_signal_out <= 8'h00;
+            jump_signal_out <= 8'h00;
+            add_sub_srl_sra_signal_out <= 8'h00;
+            rd_write_signal_out <= 8'h00;
+            read_signal_out <= 8'h00;
+            write_signal_out <= 8'h00;
+            csr_write_signal_out <= 8'h00;
+            csr_read_signal_out <= 8'h00;
+            csr_rs1_imm_signal_out <= 8'h00;
+            wb_src_signal_out <= 8'h00;
+            valid_instr_signal_out <= 8'h00;
         end
     end
 endmodule

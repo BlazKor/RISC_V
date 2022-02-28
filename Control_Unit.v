@@ -139,16 +139,15 @@ module Control_Unit (
             valid_instr_signal_out      =  1'b1;
         end
         //`ECALL_EBREAK : begin
-
         //end
         `CSRRW_CSRRS_CSRRC_CSRRWI_CSRRSI_CSRRCI : begin
             alu_src_signal_out          = `ALU_SRC_R1_IMM;
             imm_signal_out              = `IMM_I_TYPE;
             csr_op_signal_out           =  {instr_in[13], instr_in[12]};
             rd_write_signal_out         =  |instr_in[11:7];
-            csr_write_signal_out        =  instr_in[11:7] != 5'b00000;
-            csr_read_signal_out         =  |instr_in[11:7];
-            csr_rs1_imm_signal_out      =  instr_in[14];
+            csr_write_signal_out        =  (`CSR_OP_RW  == {instr_in[13], instr_in[12]}) ? 1'b1 : (|instr_in[19:15] ? 1'b1 : 1'b0);
+            csr_read_signal_out         =  instr_in[13] ? 1'b1 : (|instr_in[11:7] ? 1'b1 : 1'b0);
+            csr_rs1_imm_signal_out      =  ~instr_in[14];
             wb_src_signal_out           = `WB_SRC_ALU_RESULT;
             valid_instr_signal_out      =  1'b1;
         end
